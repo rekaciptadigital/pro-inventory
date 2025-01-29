@@ -1,5 +1,3 @@
-"use client";
-
 import { DashboardNav } from "@/components/layout/dashboard-nav";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 

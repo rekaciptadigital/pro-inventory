@@ -13,6 +13,9 @@ import {
 } from '@/components/ui/dialog';
 import { ProductTypeForm } from '@/components/product-types/product-type-form';
 import { ProductTypeList } from '@/components/product-types/product-type-list';
+import { PaginationControls } from '@/components/ui/pagination/pagination-controls';
+import { PaginationInfo } from '@/components/ui/pagination/pagination-info';
+import { usePagination } from '@/lib/hooks/use-pagination';
 import { useProductTypes } from '@/lib/hooks/product-types/use-product-types';
 import type { ProductType } from '@/types/product-type';
 
@@ -20,18 +23,21 @@ export default function ProductTypesPage() {
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedProductType, setSelectedProductType] = useState<ProductType | undefined>();
-  
+  const { currentPage, pageSize, handlePageChange, handlePageSizeChange } = usePagination();
+
   const {
     productTypes,
+    pagination,
     isLoading,
     error,
     createProductType,
     updateProductType,
     deleteProductType,
+    updateProductTypeStatus,
   } = useProductTypes({
     search,
-    page: 1,
-    limit: 10,
+    page: currentPage,
+    limit: pageSize,
   });
 
   const handleSuccess = () => {
@@ -67,7 +73,10 @@ export default function ProductTypesPage() {
           <Input
             placeholder="Search product types..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              handlePageChange(1);
+            }}
           />
         </div>
       </div>
@@ -79,6 +88,9 @@ export default function ProductTypesPage() {
           setIsDialogOpen(true);
         }}
         onDelete={deleteProductType}
+        onStatusChange={async (id, status) => {
+          await updateProductTypeStatus(id, status);
+        }}
         isLoading={isLoading}
       />
 
@@ -96,15 +108,18 @@ export default function ProductTypesPage() {
             </DialogTitle>
             <DialogDescription>
               {selectedProductType 
-                ? 'Edit product type details below'
-                : 'Add a new product type to your catalog'
+                ? 'Edit the product type details below.'
+                : 'Add a new product type to your catalog.'
               }
             </DialogDescription>
           </DialogHeader>
           <ProductTypeForm
             onSubmit={async (data) => {
               if (selectedProductType) {
-                await updateProductType(selectedProductType.id, data);
+                await updateProductType({
+                  id: selectedProductType.id,
+                  data,
+                });
               } else {
                 await createProductType(data);
               }
@@ -115,6 +130,22 @@ export default function ProductTypesPage() {
           />
         </DialogContent>
       </Dialog>
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <PaginationInfo
+          currentPage={currentPage}
+          pageSize={pageSize}
+          totalItems={pagination?.totalItems || 0}
+        />
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={pagination?.totalPages || 1}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          isLoading={isLoading}
+        />
+      </div>
     </div>
   );
 }

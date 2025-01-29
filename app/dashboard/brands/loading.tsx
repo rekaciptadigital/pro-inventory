@@ -24,7 +24,7 @@ export default function Loading() {
             >
               <div className="space-y-2 flex-1">
                 <Skeleton className="h-4 w-[150px]" />
-                <Skeleton className="h-4 w-[100px]" />
+                <Skeleton className="h-4 w-[200px]" />
               </div>
               <Skeleton className="h-6 w-[80px]" />
               <div className="flex gap-2">
