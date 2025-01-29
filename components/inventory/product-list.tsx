@@ -1,3 +1,7 @@
+'use client';
+
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Table,
   TableBody,
@@ -6,57 +10,83 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Edit, Trash2 } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils/format';
-import { useBrands } from '@/lib/hooks/use-brands';
-import { useProductTypes } from '@/lib/hooks/use-product-types';
-import { useToast } from '@/components/ui/use-toast';
-import type { Product } from '@/types/inventory';
+import { Badge } from '@/components/ui/badge';
+import { Edit, ChevronDown, ChevronRight, Barcode } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { BarcodeModal } from '@/components/ui/barcode-modal';
+import { formatDate } from '@/lib/utils/format';
+import type { InventoryProduct } from '@/types/inventory';
 
 interface ProductListProps {
-  products: Product[];
-  onEdit: (product: Product) => void;
-  onDelete: (id: string) => void;
+  products: InventoryProduct[];
+  isLoading?: boolean;
 }
 
-export function ProductList({ products, onEdit, onDelete }: ProductListProps) {
-  const { getBrandName } = useBrands();
-  const { getProductTypeName } = useProductTypes();
-  const { toast } = useToast();
+export function ProductList({ products, isLoading }: ProductListProps) {
+  const router = useRouter();
+  const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
+  const [barcodeModalOpen, setBarcodeModalOpen] = useState(false);
+  const [selectedBarcodes, setSelectedBarcodes] = useState<Array<{ sku: string; name: string }>>([]);
 
-  const handleDelete = async (id: string) => {
-    try {
-      await onDelete(id);
-      toast({
-        title: 'Success',
-        description: 'Product has been deleted successfully',
-      });
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to delete product',
-      });
+  const toggleExpand = (productId: number) => {
+    const newExpanded = new Set(expandedProducts);
+    if (newExpanded.has(productId)) {
+      newExpanded.delete(productId);
+    } else {
+      newExpanded.add(productId);
     }
+    setExpandedProducts(newExpanded);
   };
 
-  if (products.length === 0) {
+  const handleShowBarcode = (product: InventoryProduct) => {
+    const barcodes = [
+      { sku: product.sku, name: product.full_product_name },
+      ...product.product_by_variant.map(variant => ({
+        sku: variant.sku_product_variant,
+        name: variant.full_product_name
+      }))
+    ];
+    setSelectedBarcodes(barcodes);
+    setBarcodeModalOpen(true);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="border rounded-lg">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>SKU</TableHead>
+              <TableHead>Product Name</TableHead>
+              <TableHead>Brand</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Unit</TableHead>
+              <TableHead>Created At</TableHead>
+              <TableHead className="w-[100px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {Array.from({ length: 5 }).map((_, index) => (
+              <TableRow key={index}>
+                {Array.from({ length: 8 }).map((_, cellIndex) => (
+                  <TableCell key={cellIndex}>
+                    <Skeleton className="h-6 w-full" />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
+
+  if (!products?.length) {
     return (
       <div className="border rounded-lg p-8 text-center text-muted-foreground">
-        No products added yet. Click the "Add New Product" button to add your first product.
+        No products found. Click the "Add New Product" button to add your first product.
       </div>
     );
   }
@@ -66,88 +96,102 @@ export function ProductList({ products, onEdit, onDelete }: ProductListProps) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Brand</TableHead>
-            <TableHead>Type</TableHead>
             <TableHead>SKU</TableHead>
             <TableHead>Product Name</TableHead>
-            <TableHead>Classification</TableHead>
-            <TableHead>
-              <div className="space-y-1">
-                <div>Retail Price</div>
-                <div className="text-xs font-normal text-muted-foreground">(Pre-tax / With Tax)</div>
-              </div>
-            </TableHead>
+            <TableHead>Brand</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Category</TableHead>
+            <TableHead>Unit</TableHead>
+            <TableHead>Created At</TableHead>
             <TableHead className="w-[100px]">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {products.map((product) => {
-            const retailPrices = product.customerPrices?.retail || {
-              basePrice: 0,
-              taxInclusivePrice: 0
-            };
-
-            const classification = product.variants && product.variants.length > 0 
-              ? 'Variant'
-              : 'Base Product';
-
-            return (
-              <TableRow key={product.id}>
-                <TableCell>{getBrandName(product.brand)}</TableCell>
-                <TableCell>{getProductTypeName(product.productTypeId)}</TableCell>
-                <TableCell>{product.sku}</TableCell>
-                <TableCell>{product.fullProductName || product.productName}</TableCell>
+          {products.map((product) => (
+            <React.Fragment key={product.id}>
+              <TableRow 
+                className="group hover:bg-muted/50 transition-colors"
+              >
+                <TableCell className="font-medium">{product.sku}</TableCell>
+                <TableCell>{product.full_product_name}</TableCell>
+                <TableCell>{product.brand_name}</TableCell>
+                <TableCell>{product.product_type_name}</TableCell>
                 <TableCell>
-                  <Badge variant={classification === 'Variant' ? 'secondary' : 'default'}>
-                    {classification}
-                  </Badge>
+                  {product.categories.map((cat) => (
+                    <Badge key={cat.id} variant="secondary" className="mr-1">
+                      {cat.product_category_name}
+                    </Badge>
+                  ))}
                 </TableCell>
-                <TableCell>
-                  <div className="space-y-1">
-                    <div>{formatCurrency(retailPrices.basePrice)}</div>
-                    <div className="font-medium">{formatCurrency(retailPrices.taxInclusivePrice)}</div>
-                  </div>
-                </TableCell>
+                <TableCell>{product.unit}</TableCell>
+                <TableCell>{formatDate(product.created_at)}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => onEdit(product)}
+                      onClick={() => handleShowBarcode(product)}
+                    >
+                      <Barcode className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => router.push(`/dashboard/inventory/${product.id}`)}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Product</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to delete this product? This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDelete(product.id)}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    {product.product_by_variant.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => toggleExpand(product.id)}
+                      >
+                        {expandedProducts.has(product.id) ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
-            );
-          })}
+              {/* Variant Rows */}
+              {expandedProducts.has(product.id) && product.product_by_variant.map((variant) => (
+                <TableRow 
+                  key={variant.id}
+                  className="bg-muted/30 hover:bg-muted/50 transition-colors"
+                >
+                  <TableCell className="pl-10 font-mono text-sm">
+                    {variant.sku_product_variant}
+                  </TableCell>
+                  <TableCell className="pl-10">
+                    {variant.full_product_name}
+                  </TableCell>
+                  <TableCell colSpan={4}>
+                    {product.variants.map((v) => (
+                      <div key={v.id} className="text-sm text-muted-foreground">
+                        {v.variant_name}:{' '}
+                        {v.values
+                          .map((val) => val.variant_value_name)
+                          .join(', ')}
+                      </div>
+                    ))}
+                  </TableCell>
+                  <TableCell>{formatDate(variant.created_at)}</TableCell>
+                  <TableCell />
+                </TableRow>
+              ))}
+            </React.Fragment>
+          ))}
         </TableBody>
       </Table>
+      <BarcodeModal
+        open={barcodeModalOpen}
+        onOpenChange={setBarcodeModalOpen}
+        skus={selectedBarcodes}
+      />
     </div>
   );
 }

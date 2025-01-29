@@ -1,5 +1,7 @@
-import { DashboardNav } from '@/components/layout/dashboard-nav';
-import { DashboardShell } from '@/components/layout/dashboard-shell';
+"use client";
+
+import { DashboardNav } from "@/components/layout/dashboard-nav";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
 
 export default function DashboardLayout({
   children,
@@ -7,9 +9,11 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen overflow-hidden">
       <DashboardNav />
-      <DashboardShell>{children}</DashboardShell>
+      <DashboardShell>
+        {children}
+      </DashboardShell>
     </div>
   );
 }

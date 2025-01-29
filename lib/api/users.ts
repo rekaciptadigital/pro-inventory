@@ -1,46 +1,65 @@
-import axios from 'axios';
-import type { User, UserFormData, ApiResponse } from '@/types/user';
+// Mengimpor instance axios untuk melakukan permintaan HTTP
+import axiosInstance from './axios';
+// Mengimpor tipe data User dan UserFormData dari folder types
+import type { User, UserFormData } from '@/types/user';
+// Mengimpor tipe data ApiResponse dari folder types
+import type { ApiResponse } from '@/types/api';
 
-const API_URL = 'https://api.proarchery.id/users';
-
-export async function getUsers(page = 1, search = '') {
-  const params = new URLSearchParams({
-    page: page.toString(),
-    ...(search && { search }),
-  });
-
-  const response = await axios.get<ApiResponse<User[]>>(
-    `${API_URL}?${params.toString()}`
-  );
-  return response.data;
+// Mendefinisikan interface untuk filter pengguna
+export interface UserFilters {
+  search?: string; // Filter pencarian
+  page?: number;   // Filter halaman
+  limit?: number;  // Filter batas jumlah data per halaman
 }
 
-export async function createUser(data: UserFormData) {
-  const response = await axios.post<ApiResponse<User>>(API_URL, data);
-  return response.data;
-}
-
-export async function updateUser(id: string, data: UserFormData) {
-  try {
-    const response = await axios.put<ApiResponse<User>>(`${API_URL}/${id}`, {
-      nip: null,
-      nik: null,
-      first_name: data.first_name,
-      last_name: data.last_name,
-      phone_number: data.phone_number,
-      address: null,
-      status: data.status
-    });
-    return response.data;
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response) {
-      // Extract the error message from the API response
-      throw new Error(error.response.data.message || 'Failed to update user');
-    }
-    throw error;
+// Fungsi untuk mendapatkan daftar pengguna dengan filter
+export async function getUsers(filters: UserFilters = {}): Promise<ApiResponse<User[]>> {
+  const params = new URLSearchParams();
+  if (filters.search) {
+    params.append('search', filters.search);
   }
+  if (filters.page) {
+    params.append('page', filters.page.toString());
+  }
+  if (filters.limit) {
+    params.append('limit', filters.limit.toString());
+  }
+
+  // Melakukan permintaan GET ke endpoint /users dengan parameter yang telah ditentukan
+  const response = await axiosInstance.get(`/users?${params.toString()}`);
+  return response.data;
 }
 
-export async function deleteUser(id: string) {
-  await axios.delete(`${API_URL}/${id}`);
+// Fungsi untuk mendapatkan detail pengguna berdasarkan ID
+export async function getUser(id: string): Promise<ApiResponse<User>> {
+  // Melakukan permintaan GET ke endpoint /users/{id}
+  const response = await axiosInstance.get(`/users/${id}`);
+  return response.data;
+}
+
+// Fungsi untuk membuat pengguna baru
+export async function createUser(data: UserFormData): Promise<ApiResponse<User>> {
+  // Melakukan permintaan POST ke endpoint /users dengan data pengguna baru
+  const response = await axiosInstance.post('/users', data);
+  return response.data;
+}
+
+// Fungsi untuk memperbarui data pengguna berdasarkan ID
+export async function updateUser(id: string, data: UserFormData): Promise<ApiResponse<User>> {
+  // Melakukan permintaan PUT ke endpoint /users/{id} dengan data yang diperbarui
+  const response = await axiosInstance.put(`/users/${id}`, data);
+  return response.data;
+}
+
+// Fungsi untuk memperbarui sebagian data pengguna berdasarkan ID
+export async function patchUser(id: string, data: Partial<UserFormData>): Promise<ApiResponse<User>> {
+  // Melakukan permintaan PATCH ke endpoint /users/{id} dengan data yang diperbarui sebagian
+  const response = await axiosInstance.patch(`/users/${id}`, data);
+  return response.data;
+}
+
+// Fungsi untuk menghapus pengguna berdasarkan ID
+export async function deleteUser(id: string): Promise<void> {
+  // Melakukan permintaan DELETE ke endpoint /users/{id}
+  await axiosInstance.delete(`/users/${id}`);
 }

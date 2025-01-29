@@ -1,18 +1,40 @@
-'use client';
+"use client";
 
-import type { Brand } from '@/types/brand';
-import type { ProductType } from '@/types/product-type';
-import type { VariantType } from '@/types/variant';
+import type { Brand } from "@/types/brand";
+import type { ProductType } from "@/types/product-type";
+import type { VariantType } from "@/types/variant";
+import { generateRandomDigits } from "./sku/random-generator"; // Perbaiki path impor
+
+interface SkuBrand {
+  id: number;
+  code: string;
+  name: string;
+}
+
+interface SkuProductType {
+  id: number;
+  code: string;
+  name: string;
+}
 
 export function generateSKU(
-  brand: Brand,
-  productType: ProductType,
+  brand: SkuBrand,
+  productType: SkuProductType,
   uniqueCode?: string
 ): string {
-  const brandCode = brand.code || brand.name.slice(0, 3).toUpperCase();
-  const typeCode = productType.code || productType.name.slice(0, 3).toUpperCase();
-  const uniqueIdentifier = uniqueCode || generateUniqueIdentifier();
-  return `${brandCode}${typeCode}${uniqueIdentifier}`;
+  if (!brand?.code || !productType?.code) {
+    console.warn("Missing required data for SKU generation:", {
+      brand,
+      productType,
+    });
+    return "";
+  }
+
+  const brandCode = brand.code;
+  const typeCode = productType.code;
+  const code = uniqueCode || generateRandomDigits(4);
+
+  return `${brandCode}${typeCode}${code}`.toUpperCase();
 }
 
 export function generateVariantSKU(
@@ -20,18 +42,18 @@ export function generateVariantSKU(
   variant: { typeId: string; values: string[] },
   variantTypes: VariantType[]
 ): string {
-  const variantType = variantTypes.find(vt => vt.id === variant.typeId);
+  const variantType = variantTypes.find((vt) => vt.id === variant.typeId);
   if (!variantType) return baseSku;
 
   const variantCodes = variant.values
-    .map(valueId => {
-      const value = variantType.values.find(v => v.id === valueId);
-      return value?.code || '';
+    .map((valueId) => {
+      const value = variantType.values.find((v) => v.id === valueId);
+      return value?.code || "";
     })
     .filter(Boolean)
-    .join('');
+    .join("");
 
-  return `${baseSku}-${variantCodes}`;
+  return `${baseSku}${variantCodes}`;
 }
 
 export function generateAllVariantSkus(
@@ -43,16 +65,16 @@ export function generateAllVariantSkus(
 
   // Get all variant combinations
   const combinations = getCombinations(selectedVariants, variantTypes);
-  
+
   // Generate SKU for each combination
-  return combinations.map(combination => {
+  return combinations.map((combination) => {
     const variantCodes = combination
       .map(({ typeId, valueId }) => {
-        const variantType = variantTypes.find(vt => vt.id === typeId);
-        const value = variantType?.values.find(v => v.id === valueId);
-        return value?.code || '';
+        const variantType = variantTypes.find((vt) => vt.id === typeId);
+        const value = variantType?.values.find((v) => v.id === valueId);
+        return value?.code || "";
       })
-      .join('');
+      .join("");
 
     return `${baseSku}-${variantCodes}`;
   });
@@ -64,13 +86,16 @@ function getCombinations(
 ): Array<Array<{ typeId: string; valueId: string }>> {
   const combinations: Array<Array<{ typeId: string; valueId: string }>> = [[]];
 
-  selectedVariants.forEach(variant => {
+  selectedVariants.forEach((variant) => {
     const currentCombinations = [...combinations];
     combinations.length = 0;
 
-    variant.values.forEach(valueId => {
-      currentCombinations.forEach(combination => {
-        combinations.push([...combination, { typeId: variant.typeId, valueId }]);
+    variant.values.forEach((valueId) => {
+      currentCombinations.forEach((combination) => {
+        combinations.push([
+          ...combination,
+          { typeId: variant.typeId, valueId },
+        ]);
       });
     });
   });

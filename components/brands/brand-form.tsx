@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Button } from '@/components/ui/button';
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -13,107 +13,62 @@ import {
   FormLabel,
   FormMessage,
   FormDescription,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/components/ui/use-toast';
-import { generateBrandCode, validateBrandCode } from '@/lib/utils/brand-utils';
-import type { Brand } from '@/types/brand';
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/use-toast";
+import type { Brand } from "@/types/brand";
+import type { BrandFormData } from "@/lib/api/brands";
 
 const formSchema = z.object({
-  name: z.string().min(1, 'Brand name is required'),
-  code: z.string()
-    .max(10, 'Brand code cannot exceed 10 characters')
-    .refine(val => val === '' || validateBrandCode(val), {
-      message: 'Brand code must contain only letters and numbers'
-    }),
+  name: z.string().min(1, "Brand name is required"),
+  code: z.string().min(1, "Brand code is required"),
   description: z.string().optional(),
+  status: z.boolean(),
 });
 
 interface BrandFormProps {
-  onSuccess: (brand: Brand) => void;
-  initialData?: Brand;
+  readonly onSubmit: (data: BrandFormData) => Promise<void>;
+  readonly initialData?: Brand;
+  readonly onCancel: () => void;
 }
 
-export function BrandForm({ onSuccess, initialData }: BrandFormProps) {
+export const BrandForm: React.FC<Readonly<BrandFormProps>> = ({
+  onSubmit,
+  initialData,
+  onCancel,
+}) => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const getSubmitButtonText = () => {
+    if (isSubmitting) {
+      return initialData ? "Updating..." : "Creating...";
+    }
+    return initialData ? "Update Brand" : "Create Brand";
+  };
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: initialData?.name || '',
-      code: initialData?.code || '',
-      description: initialData?.description || '',
+      name: initialData?.name ?? "",
+      code: initialData?.code ?? "",
+      description: initialData?.description ?? "",
+      status: initialData?.status ?? true,
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+  const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       setIsSubmitting(true);
-      
-      // Get existing brands from localStorage
-      const existingBrands = JSON.parse(localStorage.getItem('brands') || '[]');
-      
-      // Check for duplicate code if provided
-      if (values.code && existingBrands.some((brand: Brand) => 
-        brand.code === values.code && brand.id !== initialData?.id
-      )) {
-        form.setError('code', {
-          type: 'manual',
-          message: 'This brand code is already in use'
-        });
-        return;
-      }
-
-      let brandCode = values.code;
-      if (!brandCode) {
-        const existingCodes = existingBrands.map((brand: Brand) => brand.code);
-        brandCode = generateBrandCode(existingCodes);
-      }
-      
-      let updatedBrands;
-      let resultBrand;
-
-      if (initialData) {
-        // Update existing brand
-        resultBrand = {
-          ...initialData,
-          name: values.name,
-          code: brandCode,
-          description: values.description,
-          updatedAt: new Date().toISOString(),
-        };
-        updatedBrands = existingBrands.map((brand: Brand) =>
-          brand.id === initialData.id ? resultBrand : brand
-        );
-      } else {
-        // Create new brand
-        resultBrand = {
-          id: Date.now().toString(),
-          name: values.name,
-          code: brandCode,
-          description: values.description,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        updatedBrands = [...existingBrands, resultBrand];
-      }
-      
-      // Save to localStorage
-      localStorage.setItem('brands', JSON.stringify(updatedBrands));
-
+      await onSubmit(values);
+      form.reset();
+    } catch (error: any) {
       toast({
-        title: 'Success',
-        description: `Brand has been ${initialData ? 'updated' : 'added'} successfully`,
-      });
-
-      onSuccess(resultBrand);
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: `Failed to ${initialData ? 'update' : 'add'} brand. Please try again.`,
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "An error occurred",
       });
     } finally {
       setIsSubmitting(false);
@@ -122,7 +77,7 @@ export function BrandForm({ onSuccess, initialData }: BrandFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
         <FormField
           control={form.control}
           name="name"
@@ -144,14 +99,14 @@ export function BrandForm({ onSuccess, initialData }: BrandFormProps) {
             <FormItem>
               <FormLabel>Brand Code</FormLabel>
               <FormControl>
-                <Input 
-                  placeholder="Enter brand code" 
-                  {...field} 
-                  maxLength={10}
+                <Input
+                  placeholder="Enter brand code"
+                  {...field}
+                  className="uppercase"
                 />
               </FormControl>
               <FormDescription>
-                Optional. Leave empty for auto-generated code. Max 10 characters.
+                Enter a unique code using letters and numbers only
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -165,7 +120,7 @@ export function BrandForm({ onSuccess, initialData }: BrandFormProps) {
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea 
+                <Textarea
                   placeholder="Enter brand description (optional)"
                   className="resize-none"
                   {...field}
@@ -176,12 +131,39 @@ export function BrandForm({ onSuccess, initialData }: BrandFormProps) {
           )}
         />
 
+        <FormField
+          control={form.control}
+          name="status"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <FormLabel>Active Status</FormLabel>
+                <FormDescription>
+                  Brand will {field.value ? "be visible" : "not be visible"} in
+                  the system
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
         <div className="flex justify-end space-x-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting 
-              ? (initialData ? 'Updating Brand...' : 'Adding Brand...') 
-              : (initialData ? 'Update Brand' : 'Add Brand')
-            }
+            {getSubmitButtonText()}
           </Button>
         </div>
       </form>

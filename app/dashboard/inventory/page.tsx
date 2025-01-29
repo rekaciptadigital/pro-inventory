@@ -1,94 +1,27 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { ProductActions } from '@/components/inventory/product-actions';
 import { ProductList } from '@/components/inventory/product-list';
-import { SingleProductForm } from '@/components/inventory/product-form/single-product-form';
-import { useToast } from '@/components/ui/use-toast';
-import type { Product } from '@/types/inventory';
+import { usePagination } from '@/lib/hooks/use-pagination';
+import { useInventory } from '@/lib/hooks/inventory/use-inventory';
+import { PaginationControls } from '@/components/ui/pagination/pagination-controls';
+import { PaginationInfo } from '@/components/ui/pagination/pagination-info';
 
 export default function InventoryPage() {
-  const { toast } = useToast();
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [products, setProducts] = useState<Product[]>([]);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-
-  // Load products from localStorage on component mount
-  useEffect(() => {
-    const savedProducts = localStorage.getItem('products');
-    if (savedProducts) {
-      setProducts(JSON.parse(savedProducts));
-    }
-  }, []);
-
-  const handleEdit = (product: Product) => {
-    setSelectedProduct(product);
-    setIsEditDialogOpen(true);
-  };
-
-  const handleEditSuccess = (updatedProduct: Product) => {
-    const updatedProducts = products.map(product => 
-      product.id === updatedProduct.id ? updatedProduct : product
-    );
-    setProducts(updatedProducts);
-    localStorage.setItem('products', JSON.stringify(updatedProducts));
-    setIsEditDialogOpen(false);
-    setSelectedProduct(null);
-    
-    toast({
-      title: 'Success',
-      description: 'Product has been updated successfully',
-    });
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      const updatedProducts = products.filter(product => product.id !== id);
-      setProducts(updatedProducts);
-      localStorage.setItem('products', JSON.stringify(updatedProducts));
-      
-      toast({
-        title: 'Success',
-        description: 'Product has been deleted successfully',
-      });
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to delete product',
-      });
-    }
-  };
-
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = (
-      product.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.productName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const matchesCategory = categoryFilter === 'all' || product.productTypeId === categoryFilter;
-
-    return matchesSearch && matchesCategory;
+  const { currentPage, pageSize, handlePageChange, handlePageSizeChange } = usePagination();
+  
+  const { products, pagination, isLoading } = useInventory({
+    search: searchTerm,
+    page: currentPage,
+    limit: pageSize,
+    sort: 'created_at',
+    order: 'DESC',
   });
 
   return (
@@ -100,61 +33,46 @@ export default function InventoryPage() {
             Manage your archery equipment inventory
           </p>
         </div>
-        <ProductActions />
+        <Button onClick={() => router.push('/dashboard/inventory/new')}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add New Product
+        </Button>
       </div>
 
       <div className="flex gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search by brand, SKU, or product name..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              handlePageChange(1);
+            }}
             className="pl-8"
           />
         </div>
-        <Select
-          value={categoryFilter}
-          onValueChange={setCategoryFilter}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            <SelectItem value="bows">Bows</SelectItem>
-            <SelectItem value="arrows">Arrows</SelectItem>
-            <SelectItem value="accessories">Accessories</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       <ProductList 
-        products={filteredProducts}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
+        products={products}
+        isLoading={isLoading}
       />
 
-      <Dialog 
-        open={isEditDialogOpen} 
-        onOpenChange={setIsEditDialogOpen}
-      >
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Product</DialogTitle>
-            <DialogDescription>
-              Update product details
-            </DialogDescription>
-          </DialogHeader>
-          {selectedProduct && (
-            <SingleProductForm
-              initialData={selectedProduct}
-              onSuccess={handleEditSuccess}
-              onClose={() => setIsEditDialogOpen(false)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <PaginationInfo
+          currentPage={currentPage}
+          pageSize={pageSize}
+          totalItems={pagination?.totalItems || 0}
+        />
+        <PaginationControls
+          currentPage={currentPage}
+          totalPages={pagination?.totalPages || 1}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          isLoading={isLoading}
+        />
+      </div>
     </div>
   );
 }

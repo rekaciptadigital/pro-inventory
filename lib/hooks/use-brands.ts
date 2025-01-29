@@ -1,26 +1,82 @@
-'use client';
+import { useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import * as brandApi from "@/lib/api/brands";
+import type { Brand } from "@/types/brand";
 
-import { useState, useEffect } from 'react';
-import type { Brand } from '@/types/brand';
+interface UseBrandsOptions {
+  search?: string;
+  page?: number;
+  limit?: number;
+}
 
-export function useBrands() {
-  const [brands, setBrands] = useState<Brand[]>([]);
+export function useBrands(options: UseBrandsOptions = {}) {
+  const queryClient = useQueryClient();
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    const savedBrands = localStorage.getItem('brands');
-    if (savedBrands) {
-      setBrands(JSON.parse(savedBrands));
+  const {
+    data,
+    error,
+    isLoading: isLoadingQuery,
+  } = useQuery({
+    queryKey: ["brands", options],
+    queryFn: () => brandApi.getBrands(options),
+  });
+
+  const createBrand = async (formData: brandApi.BrandFormData) => {
+    setIsLoading(true);
+    try {
+      await brandApi.createBrand(formData);
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
+  };
 
-  const getBrandName = (brandId: string): string => {
-    const brand = brands.find(b => b.id === brandId);
-    return brand?.name || 'Unknown Brand';
+  const updateBrand = async ({
+    id,
+    data: formData,
+  }: {
+    id: number;
+    data: brandApi.BrandFormData;
+  }) => {
+    setIsLoading(true);
+    try {
+      await brandApi.updateBrand(id, formData);
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteBrand = async (id: string) => {
+    setIsLoading(true);
+    try {
+      await brandApi.deleteBrand(Number(id));
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateBrandStatus = async (id: string, status: boolean) => {
+    setIsLoading(true);
+    try {
+      await brandApi.updateBrandStatus(Number(id), status);
+      queryClient.invalidateQueries({ queryKey: ["brands"] });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return {
-    brands,
-    setBrands,
-    getBrandName,
+    brands: data?.data || [],
+    pagination: data?.pagination,
+    isLoading: isLoading || isLoadingQuery,
+    error,
+    getBrands: brandApi.getBrands,
+    createBrand,
+    updateBrand,
+    deleteBrand,
+    updateBrandStatus,
   };
 }
