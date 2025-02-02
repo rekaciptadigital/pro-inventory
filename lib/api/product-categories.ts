@@ -1,7 +1,9 @@
-import axiosInstance from "./axios";
-import type { ApiResponse } from "@/types/api";
-import type { ProductCategory } from "@/types/product-category";
+// Modul untuk menangani semua API calls terkait kategori produk
+// Menggunakan axios instance untuk komunikasi dengan backend
 
+import axiosInstance from "./axios";
+
+// Interface untuk parameter filter dalam mengambil daftar kategori
 export interface ProductCategoryFilters {
   search?: string;
   status?: boolean;
@@ -11,6 +13,7 @@ export interface ProductCategoryFilters {
   order?: "ASC" | "DESC";
 }
 
+// Interface untuk data form kategori produk
 export interface ProductCategoryFormData {
   name: string;
   description?: string;
@@ -18,11 +21,21 @@ export interface ProductCategoryFormData {
   status: boolean;
 }
 
+// Interface untuk data update kategori produk
 export interface UpdateProductCategoryData {
   name: string;
-  description: string;
+  description?: string;
   status: boolean;
+  parent_id?: number | null;
 }
+
+// Fungsi-fungsi untuk operasi CRUD kategori produk
+// getProductCategories: Mengambil daftar kategori dengan filter
+// getProductCategory: Mengambil detail satu kategori
+// createProductCategory: Membuat kategori baru
+// updateProductCategory: Mengupdate kategori yang ada
+// deleteProductCategory: Menghapus kategori
+// updateProductCategoryStatus: Mengupdate status aktif/nonaktif kategori
 
 export const getProductCategories = async (
   filters: ProductCategoryFilters = {}

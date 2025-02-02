@@ -11,7 +11,6 @@ import {
   selectSkuInfo,
   selectVariantSelectors,
   addVariantSelector,
-  updateVariantSelector,
   removeVariantSelector,
   updateVariantSelectorValues,
 } from "@/lib/store/slices/formInventoryProductSlice";
@@ -26,21 +25,63 @@ import {
 } from "@/components/ui/table";
 import {
   VariantTypeSelector as VariantType,
-  VariantValueSelector as VariantValue,
+  VariantValueSelector as VariantValueSelect, // Rename to avoid conflict
 } from "./enhanced-selectors";
 import type { ProductFormValues } from "./form-schema";
-import type { Variant, VariantValue } from "@/types/variant";
+import type { VariantValue as VariantValueType } from "@/types/variant"; // Rename import
 import type { SelectOption } from "@/components/ui/enhanced-select";
-import { useBrands } from "@/lib/hooks/use-brands";
-import { useProductTypes } from "@/lib/hooks/use-product-types";
 import { Input } from "@/components/ui/input";
 import { RootState } from "@/lib/store";
+
+// Add additional type for variant value
+interface VariantValueData {
+  variant_value_id: string;
+  variant_value_name: string;
+}
+
+interface VariantType {
+  id: number;
+  name: string;
+  values: string[];
+}
 
 interface SelectedVariant {
   id: string;
   typeId: number;
   values: string[];
   availableValues?: string[];
+}
+
+interface VariantTableData {
+  originalSkuKey: string;
+  skuKey: string;
+  productName: string;
+  uniqueCode: string;
+  combo: string[];
+}
+
+interface CurrentSelector {
+  id: number;
+  name: string;
+  values: string[];
+  selected_values: string[];
+}
+
+// Update the ExistingVariant interface to match the expected types
+interface ExistingVariant {
+  variant_id: number;
+  variant_name: string;
+  variant_values: Array<{
+    variant_value_id: string; // Changed from number to string
+    variant_value_name: string;
+  }>;
+}
+
+interface VariantSelectorData {
+  id: number;
+  name: string;
+  values: string[];
+  selected_values?: string[];
 }
 
 export function VariantCombinations() {
@@ -56,6 +97,7 @@ export function VariantCombinations() {
   >({});
   const { full_product_name } = useSelector(selectProductNames);
   const { sku: baseSku } = useSelector(selectSkuInfo);
+  const existingVariants = useSelector((state: RootState) => state.formInventoryProduct.variants);
 
   const usedTypeIds = useMemo(
     () => selectedVariants.map((variant) => variant.typeId).filter(Boolean),
@@ -77,7 +119,7 @@ export function VariantCombinations() {
   const handleRemoveVariant = useCallback(
     (variantId: string) => {
       setSelectedVariants((prev) => {
-        const newVariants = prev.filter((v) => v.id !== variantId);
+        const newVariants = prev.filter((v: SelectedVariant) => v.id !== variantId);
 
         // Jika tidak ada variant yang tersisa, reset semua state terkait
         if (newVariants.length === 0) {
@@ -95,7 +137,7 @@ export function VariantCombinations() {
           );
         } else {
           // Update Redux untuk variant yang dihapus
-          const variantToRemove = prev.find((v) => v.id === variantId);
+          const variantToRemove = prev.find((v: SelectedVariant) => v.id === variantId);
           if (variantToRemove?.typeId) {
             dispatch(removeVariantSelector(variantToRemove.typeId));
           }
@@ -120,42 +162,104 @@ export function VariantCombinations() {
     }
   }, [selectedVariants, dispatch]);
 
+  // Add initialization flag to prevent infinite loop
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Replace the existing initialization useEffect with this one
+  useEffect(() => {
+    if (!isInitialized && existingVariants?.length > 0 && variantTypes?.length > 0) {
+      try {
+        setIsInitialized(true); // Set this first to prevent multiple initializations
+
+        const initialVariants = existingVariants.map((variant: ExistingVariant) => {
+          const variantType = variantTypes.find(vt => vt.id === variant.variant_id);
+          return {
+            id: `variant-${variant.variant_id}`,
+            typeId: variant.variant_id,
+            values: variant.variant_values.map((v) => v.variant_value_name),
+            availableValues: variantType?.values || [],
+          };
+        });
+
+        const variantSelectors = existingVariants.map((variant: ExistingVariant) => {
+          const variantType = variantTypes.find(vt => vt.id === variant.variant_id);
+          return {
+            id: variant.variant_id,
+            name: variantType?.name ?? variant.variant_name,
+            values: variantType?.values || [],
+            selected_values: variant.variant_values.map((v) => v.variant_value_name),
+          };
+        });
+
+        // Batch all updates together
+        Promise.resolve().then(() => {
+          setSelectedVariants(initialVariants);
+          dispatch(updateForm({
+            variants: existingVariants,
+            variant_selectors: variantSelectors,
+          }));
+        });
+
+      } catch (error) {
+        console.error('Error initializing variants:', error);
+        setIsInitialized(false); // Reset on error
+      }
+    }
+  }, [existingVariants, variantTypes, isInitialized, dispatch]);
+
+  // Add reset effect
+  useEffect(() => {
+    return () => {
+      setIsInitialized(false);
+    };
+  }, []);
+
   const handleTypeChange = useCallback(
     (variantId: string, selected: SelectOption | null) => {
       if (!selected?.data) return;
 
+      const existingVariant = existingVariants.find(
+        (v: ExistingVariant) => v.variant_id === parseInt(selected.value)
+      );
+
       setSelectedVariants((prev) => {
-        const newVariants = prev.map((v) =>
+        const newVariants = prev.map((v: SelectedVariant) =>
           v.id === variantId
             ? {
                 ...v,
                 typeId: parseInt(selected.value),
-                values: [], // Reset values when type changes
+                values: existingVariant?.variant_values.map((value: VariantValueData) => value.variant_value_name) || [],
               }
             : v
         );
         return newVariants;
       });
 
-      // Update Redux store
-      dispatch(
-        addVariantSelector({
-          id: parseInt(selected.value),
-          name: selected.data.name,
-          values: selected.data.values || [],
-          selected_values: [],
-        })
+      // Only add variant selector if it doesn't exist
+      const existingSelector = variantSelectors.find(
+        (selector) => selector.id === parseInt(selected.value)
       );
+
+      if (!existingSelector) {
+        dispatch(
+          addVariantSelector({
+            id: parseInt(selected.value),
+            name: selected.data.name,
+            values: selected.data.values || [],
+            selected_values: existingVariant?.variant_values.map((v) => v.variant_value_name) || [],
+          })
+        );
+      }
     },
-    [dispatch]
+    [dispatch, existingVariants, variantSelectors]
   );
 
   const handleValuesChange = useCallback(
     (variantId: string, selected: SelectOption[]) => {
-      const selectedValues = selected.map((option) => option.value);
+      const selectedValues = selected.map((option: SelectOption) => option.value);
 
       setSelectedVariants((prev) => {
-        const newVariants = prev.map((v) =>
+        const newVariants = prev.map((v: SelectedVariant) =>
           v.id === variantId
             ? {
                 ...v,
@@ -195,8 +299,8 @@ export function VariantCombinations() {
       if (variants.length === 0) return [[]];
       const [first, ...rest] = variants;
       const restCombinations = generateCombinations(rest);
-      return first.values.flatMap((value) =>
-        restCombinations.map((combo) => [value, ...combo])
+      return first.values.flatMap((value: string) =>
+        restCombinations.map((combo: string[]) => [value, ...combo])
       );
     };
 
@@ -237,9 +341,9 @@ export function VariantCombinations() {
         );
         return {
           variant_id: variant.typeId,
-          variant_name: variantType?.name || "",
+          variant_name: variantType?.name ?? "",
           variant_values: variant.values.map((value) => ({
-            variant_value_id: 0,
+            variant_value_id: "0", // Convert to string
             variant_value_name: value,
           })),
         };
@@ -427,7 +531,7 @@ export function VariantCombinations() {
   );
 
   const renderVariantValue = useCallback(
-    (variant: SelectedVariant, currentSelector?: any) => {
+    (variant: SelectedVariant, currentSelector?: CurrentSelector) => {
       const valueOptions = variant.values.map((value) => ({
         value: value,
         label: value,
@@ -435,7 +539,7 @@ export function VariantCombinations() {
       }));
 
       return (
-        <VariantValue
+        <VariantValueSelect // Use renamed component
           key={`value-${variant.id}-${variant.typeId}-${variant.values.join(
             ","
           )}`}
@@ -454,34 +558,37 @@ export function VariantCombinations() {
     <div className="space-y-6">
       <div className="space-y-4">
         {selectedVariants.map((variant) => {
-          const currentSelector = variantSelectors.find(
+          const selector = variantSelectors.find(
             (selector) => selector.id === variant.typeId
+          );
+          
+          // Transform VariantSelectorData to CurrentSelector
+          const currentSelector: CurrentSelector | undefined = selector ? {
+            id: selector.id,
+            name: selector.name,
+            values: selector.values,
+            selected_values: selector.selected_values || [], // Provide default empty array
+          } : undefined;
+          
+          const variantType = variantTypes?.find(
+            (vt) => vt.id === variant.typeId
           );
 
           return (
-            <div
-              key={variant.id}
-              className="flex flex-col md:grid md:grid-cols-[2fr,3fr,auto] gap-3 items-start"
-            >
+            <div key={variant.id} className="flex flex-col md:grid md:grid-cols-[2fr,3fr,auto] gap-3 items-start">
               <div className="w-full min-w-[180px]">
                 <VariantType
                   key={`type-${variant.id}`}
-                  value={
-                    variant.typeId
-                      ? {
-                          value: variant.typeId.toString(),
-                          label: currentSelector?.name || "",
-                          data: {
-                            id: variant.typeId,
-                            name: currentSelector?.name || "",
-                            values: currentSelector?.values || [],
-                          },
-                        }
-                      : null
-                  }
-                  onChange={(selected) =>
-                    handleTypeChange(variant.id, selected)
-                  }
+                  value={variant.typeId ? {
+                    value: variant.typeId.toString(),
+                    label: variantType?.name ?? currentSelector?.name ?? "",
+                    data: {
+                      id: variant.typeId,
+                      name: variantType?.name ?? currentSelector?.name ?? "",
+                      values: variantType?.values ?? currentSelector?.values ?? [],
+                    },
+                  } : null}
+                  onChange={(selected) => handleTypeChange(variant.id, selected)}
                   excludeIds={usedTypeIds.filter((id) => id !== variant.typeId)}
                 />
               </div>
@@ -538,7 +645,7 @@ export function VariantCombinations() {
                   </TableHeader>
                   <TableBody>
                     {variantData.map(
-                      ({ originalSkuKey, skuKey, productName, uniqueCode }) => (
+                      ({ originalSkuKey, skuKey, productName, uniqueCode }: VariantTableData) => (
                         <TableRow key={skuKey}>
                           <TableCell>{productName}</TableCell>
                           <TableCell className="font-medium">

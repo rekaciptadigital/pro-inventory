@@ -2,6 +2,11 @@ import axiosInstance from "./axios";
 import type { ApiResponse } from "@/types/api";
 import type { InventoryProduct } from "@/types/inventory";
 
+export async function getInventoryProduct(id: string): Promise<ApiResponse<InventoryProduct>> {
+  const response = await axiosInstance.get(`/inventory/${id}`);
+  return response.data;
+}
+
 export interface CreateInventoryData {
   brand_id: string;
   brand_code: string;
@@ -107,5 +112,17 @@ export async function createInventoryProduct(
       throw new Error(errorResponse.error.join("\n"));
     }
     throw error;
+  }
+}
+
+export async function deleteInventoryProduct(id: number): Promise<void> {
+  try {
+    const response = await axiosInstance.delete(`/inventory/${id}`);
+    if (response.status !== 200) {
+      throw new Error('Failed to delete product');
+    }
+  } catch (error: any) {
+    const message = error.response?.data?.message || 'Failed to delete product';
+    throw new Error(message);
   }
 }

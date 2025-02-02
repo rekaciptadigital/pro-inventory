@@ -21,6 +21,7 @@ import {
   Menu,
   FolderTree,
   Users,
+  Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,11 @@ const navigation = [
         name: "Price Management",
         href: "/dashboard/price-management",
         icon: DollarSign,
+      },
+      {
+        name: "Product Stock",
+        href: "/dashboard/products/stock",
+        icon: Package,
       },
     ],
   },
@@ -113,7 +119,7 @@ export function DashboardNav() {
             <AccordionTrigger
               className={cn(
                 "flex items-center space-x-2 px-3 py-2 text-sm rounded-lg text-muted-foreground",
-                "hover:bg-accent hover:text-accent-foreground transition-colors",
+                "hover:bg-secondary hover:text-primary transition-all",
                 "hover:no-underline"
               )}
             >
@@ -159,14 +165,14 @@ export function DashboardNav() {
                     sideOffset={-5}
                   >
                     <div className="space-y-1">
-                      <div className="px-2 py-1.5 text-sm font-medium">{item.name}</div>
+                      <div className="px-2 py-1.5 text-sm">{item.name}</div>
                       {item.children.map((child: any) => (
                         <Link
                           key={child.href || child.name}
                           href={child.href}
                           className={cn(
-                            "flex items-center space-x-2 px-2 py-1.5 text-sm rounded-lg",
-                            "hover:bg-accent hover:text-accent-foreground transition-colors",
+                            "flex items-center space-x-2 px-2 py-1.5 rounded-lg text-sm",
+                            "hover:bg-secondary hover:text-primary transition-colors",
                             pathname === child.href && "bg-accent text-accent-foreground"
                           )}
                         >
@@ -195,10 +201,10 @@ export function DashboardNav() {
       <Link
         href={item.href}
         className={cn(
-          "flex items-center px-3 py-2 rounded-lg",
-          "hover:bg-accent hover:text-accent-foreground transition-colors",
+          "flex items-center px-3 py-2 rounded-lg transition-all",
+          "hover:bg-secondary hover:text-primary",
           pathname === item.href
-            ? "bg-accent text-accent-foreground"
+            ? "bg-secondary text-primary"
             : "text-muted-foreground",
           "text-sm"
         )}
@@ -212,10 +218,10 @@ export function DashboardNav() {
           <Link
             href={item.href}
             className={cn(
-              "flex items-center justify-center p-2 rounded-lg",
-              "hover:bg-accent hover:text-accent-foreground transition-colors",
+              "flex items-center justify-center p-2 rounded-lg transition-all",
+              "hover:bg-secondary hover:text-primary",
               pathname === item.href
-                ? "bg-accent text-accent-foreground"
+                ? "bg-secondary text-primary"
                 : "text-muted-foreground",
               "text-sm"
             )}
@@ -257,7 +263,7 @@ export function DashboardNav() {
               <Target className="h-6 w-6 text-primary" />
               <span
                 className={cn(
-                  "font-semibold text-lg whitespace-nowrap",
+                  "text-lg font-semibold whitespace-nowrap",
                   !isOpen && "hidden"
                 )}
               >
@@ -276,7 +282,9 @@ export function DashboardNav() {
 
           <nav className="flex-1 space-y-1 px-3 py-4">
             {navigation.map((item) => (
-              <div key={item.href || item.name}>{renderNavItem(item)}</div>
+              <div key={item.href || item.name} className="text-sm">
+                {renderNavItem(item)}
+              </div>
             ))}
           </nav>
 
@@ -349,7 +357,7 @@ export function DashboardNav() {
             <div className="flex h-16 items-center justify-between px-4">
               <Link href="/dashboard" className="flex items-center space-x-3">
                 <Target className="h-6 w-6 text-primary" />
-                <span className="text-lg font-semibold">Archery Pro</span>
+                <span className="text-lg font-semibold tracking-tight">Archery Pro</span>
               </Link>
               <Button
                 variant="ghost"

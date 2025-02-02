@@ -1,42 +1,52 @@
-import { useCallback } from 'react';
-import { UseFormReturn } from 'react-hook-form';
-import { ProductFormValues } from '@/components/inventory/product-form/form-schema';
-import { calculateHBNaik, calculateCustomerPrices } from '@/lib/utils/price-calculator';
-import type { Tax } from '@/types/pricing';
+import { UseFormReturn } from "react-hook-form";
+import type { PriceFormFields } from "@/types/form";
 
-export function usePriceCalculations(form: UseFormReturn<ProductFormValues>) {
-  const updateHBNaik = useCallback(() => {
-    const hbReal = form.watch('hbReal') || 0;
-    const adjustmentPercentage = form.watch('adjustmentPercentage') || 0;
-    const hbNaik = calculateHBNaik(hbReal, adjustmentPercentage);
+interface Category {
+  id: number;
+  name: string;
+  percentage: number;
+}
+
+export function usePriceCalculations(form: UseFormReturn<PriceFormFields>) {
+  const updateHBReal = () => {
+    const usdPrice = form.getValues("usdPrice");
+    const exchangeRate = form.getValues("exchangeRate");
+    const hbReal = usdPrice * exchangeRate;
+    form.setValue("hbReal", hbReal);
+  };
+
+  const updateHBNaik = () => {
+    const hbReal = form.getValues("hbReal");
+    const adjustmentPercentage = form.getValues("adjustmentPercentage");
+    const hbNaik = hbReal * (1 + adjustmentPercentage / 100);
+    form.setValue("hbNaik", hbNaik);
+  };
+
+  const updateCustomerPrices = (hbNaik: number, categories: Category[]) => {
+    if (!categories?.length) return;
+
+    const customerPrices: PriceFormFields['customerPrices'] = {};
     
-    form.setValue('hbNaik', hbNaik, { shouldValidate: true });
-    return hbNaik;
-  }, [form]);
+    categories.forEach(category => {
+      const categoryKey = category.name.toLowerCase();
+      const markup = parseFloat(category.percentage?.toString() || '0');
+      const basePrice = hbNaik * (1 + (markup / 100));
+      const taxAmount = basePrice * 0.11;
 
-  const updateHBReal = useCallback(() => {
-    const usdPrice = form.watch('usdPrice') || 0;
-    const exchangeRate = form.watch('exchangeRate') || 0;
-    const hbReal = Math.round(usdPrice * exchangeRate);
-    
-    form.setValue('hbReal', hbReal, { shouldValidate: true });
-    return hbReal;
-  }, [form]);
+      customerPrices[categoryKey] = {
+        basePrice: Number(basePrice.toFixed(2)),
+        taxAmount: Number(taxAmount.toFixed(2)),
+        taxInclusivePrice: Number((basePrice + taxAmount).toFixed(2)),
+        appliedTaxPercentage: 11 // Add missing property
+      };
+    });
 
-  const updateCustomerPrices = useCallback((
-    hbNaik: number,
-    categories: Array<{ name: string; percentage: number }>,
-    activeTaxes: Tax[]
-  ) => {
-    if (hbNaik > 0) {
-      const prices = calculateCustomerPrices(hbNaik, categories, activeTaxes);
-      form.setValue('customerPrices', prices, { shouldValidate: true });
-    }
-  }, [form]);
+    form.setValue('customerPrices', customerPrices);
+  };
 
   return {
-    updateHBNaik,
     updateHBReal,
-    updateCustomerPrices,
+    updateHBNaik,
+    updateCustomerPrices
   };
 }

@@ -1,14 +1,12 @@
+// Tipe data untuk kategori produk yang digunakan di seluruh aplikasi
+// Mendukung struktur data hierarki (parent-child) dan status aktif/nonaktif
 export interface ProductCategory {
   id: number;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
   name: string;
-  code: string;
-  description: string | null;
-  parent_id: number | null;
+  code?: string;
+  description?: string; // Changed from string | null to string | undefined
   status: boolean;
-  children: ProductCategory[];
-  parent?: ProductCategory; // Add this for direct parent
-  parents?: ProductCategory[]; // Add this for parent hierarchy
+  parent_id?: number;
+  children?: ProductCategory[];
+  parents?: ProductCategory[];
 }

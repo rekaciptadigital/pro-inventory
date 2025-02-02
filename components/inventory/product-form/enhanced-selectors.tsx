@@ -29,12 +29,50 @@ interface CategorySelectorState {
 export function BrandSelector() {
   const {
     control,
+    getValues,
     formState: { errors },
     setValue,
   } = useFormContext<ProductFormValues>();
   const { getBrands } = useBrands();
   const dispatch = useDispatch();
   const [selectedBrand, setSelectedBrand] = useState<SelectOption | null>(null);
+  const initialBrandId = getValues('brand');
+
+  // Load initial brand data
+  useEffect(() => {
+    const loadInitialBrand = async () => {
+      if (initialBrandId) {
+        console.log('Loading initial brand:', initialBrandId);
+        try {
+          const response = await getBrands({
+            search: '',
+            page: 1,
+            limit: 100 // Increased limit to ensure we find the brand
+          });
+          const brand = response.data.find(b => b.id.toString() === initialBrandId);
+          if (brand) {
+            console.log('Found initial brand:', brand);
+            setSelectedBrand({
+              value: brand.id.toString(),
+              label: brand.name,
+              subLabel: brand.code,
+              data: brand
+            });
+            dispatch(setBrand({
+              id: brand.id,
+              code: brand.code,
+              name: brand.name,
+            }));
+          } else {
+            console.warn('Initial brand not found:', initialBrandId);
+          }
+        } catch (error) {
+          console.error('Error loading initial brand:', error);
+        }
+      }
+    };
+    loadInitialBrand();
+  }, [initialBrandId, getBrands, dispatch]);
 
   const loadBrandOptions = async (
     search: string,
@@ -118,12 +156,49 @@ export function BrandSelector() {
 export function ProductTypeSelector() {
   const {
     control,
+    getValues,
     formState: { errors },
     setValue,
   } = useFormContext<ProductFormValues>();
   const dispatch = useDispatch();
   const [selectedProductType, setSelectedProductType] =
     useState<SelectOption | null>(null);
+  const initialProductTypeId = getValues('productTypeId');
+
+  // Load initial product type data
+  useEffect(() => {
+    const loadInitialProductType = async () => {
+      if (initialProductTypeId) {
+        try {
+          const response = await getProductTypes({
+            search: '',
+            page: 1,
+            limit: 100 // Increased limit to ensure we find the product type
+          });
+          const productType = response.data.find(pt => pt.id.toString() === initialProductTypeId);
+          if (productType) {
+            console.log('Found initial product type:', productType);
+            setSelectedProductType({
+              value: productType.id.toString(),
+              label: productType.name,
+              subLabel: productType.code,
+              data: productType
+            });
+            dispatch(setProductType({
+              id: productType.id,
+              code: productType.code,
+              name: productType.name,
+            }));
+          } else {
+            console.warn('Initial product type not found:', initialProductTypeId);
+          }
+        } catch (error) {
+          console.error('Error loading initial product type:', error);
+        }
+      }
+    };
+    loadInitialProductType();
+  }, [initialProductTypeId, dispatch]);
 
   const loadProductTypeOptions = async (
     search: string,
@@ -276,6 +351,70 @@ export function CategorySelector() {
     []
   );
 
+  // Add state for initial category
+  const initialCategoryId = useFormContext<ProductFormValues>().getValues('categoryId');
+
+  // Load initial category data
+  useEffect(() => {
+    const loadInitialCategory = async () => {
+      if (initialCategoryId) {
+        try {
+          const response = await getCategories({
+            search: '',
+            page: 1,
+            limit: 100 // Increased limit to ensure we find the category
+          });
+
+          const findCategoryPath = (categories: any[], targetId: string): any[] => {
+            for (const category of categories) {
+              if (category.id.toString() === targetId) {
+                return [category];
+              }
+              if (category.children) {
+                const path = findCategoryPath(category.children, targetId);
+                if (path.length) {
+                  return [category, ...path];
+                }
+              }
+            }
+            return [];
+          };
+
+          const categoryPath = findCategoryPath(response.data, initialCategoryId);
+
+          if (categoryPath.length) {
+            const newStates = categoryPath.map((category, index) => ({
+              level: index,
+              parentId: index === 0 ? null : categoryPath[index - 1].id,
+              selectedCategories: [{
+                value: category.id.toString(),
+                label: category.name,
+                subLabel: category.code,
+                data: category
+              }]
+            }));
+
+            setSelectorStates(newStates);
+
+            const selectedCats = categoryPath.map((category, index) => ({
+              product_category_id: category.id,
+              product_category_parent: index === 0 ? null : categoryPath[index - 1].id,
+              product_category_name: category.name,
+              category_hierarchy: index + 1,
+            }));
+
+            setSelectedCategories(selectedCats);
+            dispatch(updateProductCategories(selectedCats));
+            setValue("categoryId", categoryPath[categoryPath.length - 1].id.toString());
+          }
+        } catch (error) {
+          console.error('Error loading initial category:', error);
+        }
+      }
+    };
+    loadInitialCategory();
+  }, [initialCategoryId, dispatch, setValue]);
+
   // Effect to handle state updates
   useEffect(() => {
     if (pendingSelection === null) return;
@@ -399,6 +538,26 @@ export function VariantTypeSelector({
   excludeIds?: number[];
 }) {
   const { variants, isLoading } = useVariants();
+  const [initialLoad, setInitialLoad] = useState(true);
+
+  // Add initial load effect
+  useEffect(() => {
+    if (initialLoad && variants.length > 0 && value?.value) {
+      const variant = variants.find(v => v.id.toString() === value.value);
+      if (variant) {
+        onChange({
+          value: variant.id.toString(),
+          label: variant.name,
+          data: {
+            id: variant.id,
+            name: variant.name,
+            values: variant.values,
+          },
+        });
+      }
+      setInitialLoad(false);
+    }
+  }, [variants, value, onChange, initialLoad]);
 
   const loadOptions = useCallback(
     async (search: string) => {

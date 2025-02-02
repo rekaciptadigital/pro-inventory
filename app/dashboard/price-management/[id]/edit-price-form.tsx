@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { PricingInfo } from '@/components/price-management/pricing-info';
-import { CustomerPrices } from '@/components/price-management/customer-prices';
-import { useProducts } from '@/lib/hooks/use-products';
+import { useParams, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { PricingInfo } from "@/components/price-management/pricing-info";
+import { CustomerPrices } from "@/components/price-management/customer-prices";
+import { useProducts } from "@/lib/hooks/use-products";
 
 export function EditPriceForm() {
   const { id } = useParams();
