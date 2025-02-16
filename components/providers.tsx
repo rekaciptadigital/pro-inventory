@@ -1,15 +1,25 @@
 'use client';
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Provider as ReduxProvider } from "react-redux";
-import { store } from "@/lib/store/store";
+import { Provider } from 'react-redux';
+import { store } from '@/lib/store/store';
+import { ThemeProvider } from '@/components/theme-provider';
+import { AuthProvider } from '@/components/auth-provider';
 
-const queryClient = new QueryClient();
+interface ProvidersProps {
+  readonly children: React.ReactNode;
+}
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children }: ProvidersProps) {
   return (
-    <ReduxProvider store={store}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    </ReduxProvider>
+    <Provider store={store}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+      >
+        <AuthProvider>{children}</AuthProvider>
+      </ThemeProvider>
+    </Provider>
   );
 }

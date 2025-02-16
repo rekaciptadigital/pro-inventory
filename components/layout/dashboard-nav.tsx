@@ -22,6 +22,7 @@ import {
   FolderTree,
   Users,
   Package,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,6 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Target },
-  { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   {
     name: "Products",
     icon: Box,
@@ -58,6 +58,7 @@ const navigation = [
         href: "/dashboard/products/stock",
         icon: Package,
       },
+      { name: "Locations", href: "/dashboard/locations", icon: Building2 },
     ],
   },
   {
@@ -75,7 +76,6 @@ const navigation = [
     href: "/dashboard/settings/categories",
     icon: Tags,
   },
-  { name: "Taxes", href: "/dashboard/taxes", icon: DollarSign },
   { name: "Users", href: "/dashboard/users", icon: Users },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
@@ -282,7 +282,7 @@ export function DashboardNav() {
 
           <nav className="flex-1 space-y-1 px-3 py-4">
             {navigation.map((item) => (
-              <div key={item.href || item.name} className="text-sm">
+              <div key={item.href ?? item.name} className="text-sm">
                 {renderNavItem(item)}
               </div>
             ))}
@@ -370,7 +370,7 @@ export function DashboardNav() {
 
             <nav className="flex-1 space-y-2 px-3 py-4">
               {navigation.map((item) => (
-                <div key={item.href || item.name} className="text-sm">
+                <div key={item.href ?? item.name} className="text-sm">
                   {renderNavItem(item)}
                 </div>
               ))}

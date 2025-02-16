@@ -2,51 +2,48 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHeader, 
+  TableRow 
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Edit, ChevronDown, ChevronRight, Barcode, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BarcodeModal } from '@/components/ui/barcode-modal';
-import { formatDate } from '@/lib/utils/format';
-import type { InventoryProduct, InventoryProductVariant } from '@/types/inventory';
 import { VariantBarcodeModal } from '@/components/ui/variant-barcode-modal';
 import { useToast } from '@/components/ui/use-toast';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
+import { ProductRow } from './product-row';
+import { VariantRow } from './variant-row';
+import type { InventoryProduct, InventoryProductVariant } from '@/types/inventory';
 
 interface ProductListProps {
-  products: InventoryProduct[];
-  isLoading?: boolean;
-  onDelete?: (id: number) => Promise<void>;
+  readonly products: ReadonlyArray<InventoryProduct>;
+  readonly isLoading?: boolean;
+  readonly onDelete?: (id: number) => Promise<void>;
 }
 
+// Kolom yang ditampilkan saat loading
+const LOADING_COLUMNS = ['sku', 'name', 'brand', 'type', 'category', 'unit', 'date', 'actions'];
+
 export function ProductList({ products, isLoading, onDelete }: ProductListProps) {
+  // State untuk manajemen UI
   const router = useRouter();
   const { toast } = useToast();
+  
+  // State untuk manajemen expand/collapse produk
   const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
+  
+  // State untuk modal barcode
   const [barcodeModalOpen, setBarcodeModalOpen] = useState(false);
   const [variantBarcodeModalOpen, setVariantBarcodeModalOpen] = useState(false);
   const [selectedBarcodes, setSelectedBarcodes] = useState<Array<{ sku: string; name: string }>>([]);
   const [selectedVariantBarcode, setSelectedVariantBarcode] = useState<{ sku: string; name: string } | null>(null);
+  
+  // State untuk proses delete
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
+  // Handler untuk expand/collapse produk
   const toggleExpand = (productId: number) => {
     const newExpanded = new Set(expandedProducts);
     if (newExpanded.has(productId)) {
@@ -57,6 +54,7 @@ export function ProductList({ products, isLoading, onDelete }: ProductListProps)
     setExpandedProducts(newExpanded);
   };
 
+  // Handler untuk menampilkan barcode produk dan variannya
   const handleShowBarcode = (product: InventoryProduct) => {
     const barcodes = [
       { sku: product.sku, name: product.full_product_name },
@@ -69,6 +67,7 @@ export function ProductList({ products, isLoading, onDelete }: ProductListProps)
     setBarcodeModalOpen(true);
   };
 
+  // Handler untuk menampilkan barcode varian
   const handleShowVariantBarcode = (variant: InventoryProductVariant) => {
     if (!variant.sku_product_variant || !variant.full_product_name) {
       toast({
@@ -86,6 +85,7 @@ export function ProductList({ products, isLoading, onDelete }: ProductListProps)
     setVariantBarcodeModalOpen(true);
   };
 
+  // Handler untuk menghapus produk
   const handleDelete = async (id: number) => {
     if (!onDelete) return;
     
@@ -97,38 +97,34 @@ export function ProductList({ products, isLoading, onDelete }: ProductListProps)
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>SKU</TableHead>
-              <TableHead>Product Name</TableHead>
-              <TableHead>Brand</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Unit</TableHead>
-              <TableHead>Created At</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
+  // Render loading state
+  const renderLoadingState = () => (
+    <div className="border rounded-lg">
+      <Table>
+        <TableHeader>
+          {/* ...existing header... */}
+        </TableHeader>
+        <TableBody>
+          {Array.from({ length: 5 }).map((_, rowIndex) => (
+            <TableRow key={`loading-row-${rowIndex + 1}`}>
+              {LOADING_COLUMNS.map((column) => (
+                <TableCell key={`loading-cell-${column}`}>
+                  <Skeleton className="h-6 w-full" />
+                </TableCell>
+              ))}
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {Array.from({ length: 5 }).map((_, index) => (
-              <TableRow key={index}>
-                {Array.from({ length: 8 }).map((_, cellIndex) => (
-                  <TableCell key={cellIndex}>
-                    <Skeleton className="h-6 w-full" />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    );
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+
+  // Tampilkan loading state jika masih loading
+  if (isLoading) {
+    return renderLoadingState();
   }
 
+  // Tampilkan pesan jika tidak ada produk
   if (!products?.length) {
     return (
       <div className="border rounded-lg p-8 text-center text-muted-foreground">
@@ -137,145 +133,39 @@ export function ProductList({ products, isLoading, onDelete }: ProductListProps)
     );
   }
 
+  // Render utama daftar produk
   return (
     <div className="border rounded-lg">
       <Table>
         <TableHeader>
-          <TableRow>
-            <TableHead>SKU</TableHead>
-            <TableHead>Product Name</TableHead>
-            <TableHead>Brand</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Unit</TableHead>
-            <TableHead>Created At</TableHead>
-            <TableHead className="w-[100px]">Actions</TableHead>
-          </TableRow>
+          {/* ...existing header... */}
         </TableHeader>
         <TableBody>
           {products.map((product) => (
             <React.Fragment key={product.id}>
-              <TableRow 
-                className="group hover:bg-muted/50 transition-colors"
-              >
-                <TableCell className="font-medium">{product.sku}</TableCell>
-                <TableCell>{product.full_product_name}</TableCell>
-                <TableCell>{product.brand_name}</TableCell>
-                <TableCell>{product.product_type_name}</TableCell>
-                <TableCell>
-                  {product.categories.map((cat) => (
-                    <Badge key={cat.id} variant="secondary" className="mr-1">
-                      {cat.product_category_name}
-                    </Badge>
-                  ))}
-                </TableCell>
-                <TableCell>{product.unit}</TableCell>
-                <TableCell>{formatDate(product.created_at)}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleShowBarcode(product)}
-                    >
-                      <Barcode className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => router.push(`/dashboard/inventory/${product.id}/edit`)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Product</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to delete this product? This action cannot be undone.
-                          </AlertDialogDescription>
-                          <div className="mt-4 p-4 bg-muted/50 rounded-lg">
-                            <div><strong>SKU:</strong> {product.sku}</div>
-                            <div><strong>Name:</strong> {product.full_product_name}</div>
-                          </div>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDelete(product.id)}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            disabled={isDeleting === product.id}
-                          >
-                            {isDeleting === product.id ? "Deleting..." : "Delete"}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                    {product.product_by_variant.length > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => toggleExpand(product.id)}
-                      >
-                        {expandedProducts.has(product.id) ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-              {/* Variant Rows */}
-              {expandedProducts.has(product.id) && product.product_by_variant.map((variant) => (
-                <TableRow 
-                  key={variant.id}
-                  className="bg-muted/30 hover:bg-muted/50 transition-colors"
-                >
-                  <TableCell className="pl-10 font-mono text-sm">
-                    {variant.sku_product_variant}
-                  </TableCell>
-                  <TableCell className="pl-10">
-                    {variant.full_product_name}
-                  </TableCell>
-                  <TableCell colSpan={4}>
-                    {product.variants.map((v) => (
-                      <div key={v.id} className="text-sm text-muted-foreground">
-                        {v.variant_name}:{' '}
-                        {v.values
-                          .map((val) => val.variant_value_name)
-                          .join(', ')}
-                      </div>
-                    ))}
-                  </TableCell>
-                  <TableCell>{formatDate(variant.created_at)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleShowVariantBarcode(variant)}
-                      >
-                        <Barcode className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              <ProductRow
+                product={product}
+                isExpanded={expandedProducts.has(product.id)}
+                isDeleting={isDeleting === product.id}
+                onToggleExpand={() => toggleExpand(product.id)}
+                onShowBarcode={() => handleShowBarcode(product)}
+                onEdit={() => router.push(`/dashboard/inventory/${product.id}/edit`)}
+                onDelete={() => handleDelete(product.id)}
+              />
+              {expandedProducts.has(product.id) &&
+                product.product_by_variant.map((variant) => (
+                  <VariantRow
+                    key={variant.id}
+                    variant={variant}
+                    product={product}
+                    onShowBarcode={() => handleShowVariantBarcode(variant)}
+                  />
+                ))}
             </React.Fragment>
           ))}
         </TableBody>
       </Table>
+      
       <BarcodeModal
         open={barcodeModalOpen}
         onOpenChange={setBarcodeModalOpen}

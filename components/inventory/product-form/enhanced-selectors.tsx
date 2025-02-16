@@ -1,24 +1,27 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useMemo } from "react";
 import { useFormContext } from "react-hook-form";
-import { useDispatch } from "react-redux";
-import {
-  EnhancedSelect,
-  type SelectOption,
-} from "@/components/ui/enhanced-select";
+import { useDispatch, useSelector } from "react-redux";
 import { ClientSelect } from "@/components/ui/enhanced-select/client-select";
 import { useBrands } from "@/lib/hooks/use-brands";
-import { useProductCategories } from "@/lib/hooks/use-product-categories";
 import { useVariants } from "@/lib/hooks/use-variants";
 import type { ProductFormValues } from "./form-schema";
 import {
   setBrand,
   setProductType,
-  addCategory,
-  removeCategory,
   updateProductCategories,
+  selectSortedCategories,
+  selectAvailableCategories,
+  setAvailableCategories,
 } from "@/lib/store/slices/formInventoryProductSlice";
 import { getProductTypes } from "@/lib/api/product-types";
 import { getCategories } from "@/lib/api/categories";
+
+interface SelectOption {
+  value: string;
+  label: string;
+  subLabel?: string;
+  data?: any;
+}
 
 interface CategorySelectorState {
   level: number;
@@ -36,38 +39,42 @@ export function BrandSelector() {
   const { getBrands } = useBrands();
   const dispatch = useDispatch();
   const [selectedBrand, setSelectedBrand] = useState<SelectOption | null>(null);
-  const initialBrandId = getValues('brand');
+  const initialBrandId = getValues("brand");
 
   // Load initial brand data
   useEffect(() => {
     const loadInitialBrand = async () => {
       if (initialBrandId) {
-        console.log('Loading initial brand:', initialBrandId);
+        console.log("Loading initial brand:", initialBrandId);
         try {
           const response = await getBrands({
-            search: '',
+            search: "",
             page: 1,
-            limit: 100 // Increased limit to ensure we find the brand
+            limit: 100, // Increased limit to ensure we find the brand
           });
-          const brand = response.data.find(b => b.id.toString() === initialBrandId);
+          const brand = response.data.find(
+            (b) => b.id.toString() === initialBrandId
+          );
           if (brand) {
-            console.log('Found initial brand:', brand);
+            console.log("Found initial brand:", brand);
             setSelectedBrand({
               value: brand.id.toString(),
               label: brand.name,
               subLabel: brand.code,
-              data: brand
+              data: brand,
             });
-            dispatch(setBrand({
-              id: brand.id,
-              code: brand.code,
-              name: brand.name,
-            }));
+            dispatch(
+              setBrand({
+                id: brand.id,
+                code: brand.code,
+                name: brand.name,
+              })
+            );
           } else {
-            console.warn('Initial brand not found:', initialBrandId);
+            console.warn("Initial brand not found:", initialBrandId);
           }
         } catch (error) {
-          console.error('Error loading initial brand:', error);
+          console.error("Error loading initial brand:", error);
         }
       }
     };
@@ -163,7 +170,7 @@ export function ProductTypeSelector() {
   const dispatch = useDispatch();
   const [selectedProductType, setSelectedProductType] =
     useState<SelectOption | null>(null);
-  const initialProductTypeId = getValues('productTypeId');
+  const initialProductTypeId = getValues("productTypeId");
 
   // Load initial product type data
   useEffect(() => {
@@ -171,29 +178,36 @@ export function ProductTypeSelector() {
       if (initialProductTypeId) {
         try {
           const response = await getProductTypes({
-            search: '',
+            search: "",
             page: 1,
-            limit: 100 // Increased limit to ensure we find the product type
+            limit: 100, // Increased limit to ensure we find the product type
           });
-          const productType = response.data.find(pt => pt.id.toString() === initialProductTypeId);
+          const productType = response.data.find(
+            (pt) => pt.id.toString() === initialProductTypeId
+          );
           if (productType) {
-            console.log('Found initial product type:', productType);
+            console.log("Found initial product type:", productType);
             setSelectedProductType({
               value: productType.id.toString(),
               label: productType.name,
               subLabel: productType.code,
-              data: productType
+              data: productType,
             });
-            dispatch(setProductType({
-              id: productType.id,
-              code: productType.code,
-              name: productType.name,
-            }));
+            dispatch(
+              setProductType({
+                id: productType.id,
+                code: productType.code,
+                name: productType.name,
+              })
+            );
           } else {
-            console.warn('Initial product type not found:', initialProductTypeId);
+            console.warn(
+              "Initial product type not found:",
+              initialProductTypeId
+            );
           }
         } catch (error) {
-          console.error('Error loading initial product type:', error);
+          console.error("Error loading initial product type:", error);
         }
       }
     };
@@ -288,140 +302,214 @@ export function ProductTypeSelector() {
 }
 
 export function CategorySelector() {
+  const dispatch = useDispatch();
   const {
     control,
+    getValues,
     formState: { errors },
     setValue,
   } = useFormContext<ProductFormValues>();
-  const dispatch = useDispatch();
+
+  const storeCategories = useSelector(selectSortedCategories);
+  const availableCategories = useSelector(selectAvailableCategories);
+
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [selectorStates, setSelectorStates] = useState<CategorySelectorState[]>(
-    [{ level: 0, parentId: null, selectedCategories: [] }]
+    []
   );
-  const [pendingSelection, setPendingSelection] = useState<{
-    selected: SelectOption | null;
-    level: number;
-  } | null>(null);
-  const [selectedCategories, setSelectedCategories] = useState<
-    ProductCategory[]
-  >([]);
 
-  const loadCategoryOptions = useCallback(
-    async (
-      search: string,
-      loadedOptions: SelectOption[],
-      { page }: { page: number }
-    ) => {
-      try {
-        // Only fetch from API for root level categories
-        const response = await getCategories({
-          search,
-          page,
-          limit: 10,
-          sort: "created_at",
-          order: "DESC",
-        });
-
-        // Filter based on parent_id for root level
-        const rootCategories = response.data.filter(
-          (cat) => cat.parent_id === null
-        );
-
-        return {
-          options: rootCategories.map((category) => ({
-            value: category.id.toString(),
-            label: category.name,
-            subLabel: category.code,
-            data: category, // Include full category data with children
-          })),
-          hasMore: response.pagination.hasNext,
-          additional: {
-            page: page + 1,
-            hasMore: response.pagination.hasNext,
-          },
-        };
-      } catch (error) {
-        console.error("Error loading categories:", error);
-        return {
-          options: [],
-          hasMore: false,
-          additional: { page: 1, hasMore: false },
-        };
+  // Helper function to find children for a category
+  const findChildren = useCallback(
+    (categories: any[], id: string | number): any[] => {
+      for (const cat of categories) {
+        if (cat.id?.toString() === id?.toString()) {
+          return cat.children || [];
+        }
+        if (cat.children?.length) {
+          const found = findChildren(cat.children, id);
+          if (found.length) return found;
+        }
       }
+      return [];
     },
     []
   );
 
-  // Add state for initial category
-  const initialCategoryId = useFormContext<ProductFormValues>().getValues('categoryId');
-
-  // Load initial category data
+  // Modified initial load effect
   useEffect(() => {
-    const loadInitialCategory = async () => {
-      if (initialCategoryId) {
-        try {
-          const response = await getCategories({
-            search: '',
-            page: 1,
-            limit: 100 // Increased limit to ensure we find the category
-          });
+    const loadCategories = async () => {
+      if (isInitialized) return;
 
-          const findCategoryPath = (categories: any[], targetId: string): any[] => {
-            for (const category of categories) {
-              if (category.id.toString() === targetId) {
-                return [category];
-              }
-              if (category.children) {
-                const path = findCategoryPath(category.children, targetId);
-                if (path.length) {
-                  return [category, ...path];
-                }
-              }
-            }
-            return [];
-          };
+      try {
+        const response = await getCategories({
+          search: "",
+          page: 1,
+          limit: 100,
+        });
 
-          const categoryPath = findCategoryPath(response.data, initialCategoryId);
-
-          if (categoryPath.length) {
-            const newStates = categoryPath.map((category, index) => ({
-              level: index,
-              parentId: index === 0 ? null : categoryPath[index - 1].id,
-              selectedCategories: [{
-                value: category.id.toString(),
-                label: category.name,
-                subLabel: category.code,
-                data: category
-              }]
-            }));
-
-            setSelectorStates(newStates);
-
-            const selectedCats = categoryPath.map((category, index) => ({
-              product_category_id: category.id,
-              product_category_parent: index === 0 ? null : categoryPath[index - 1].id,
-              product_category_name: category.name,
-              category_hierarchy: index + 1,
-            }));
-
-            setSelectedCategories(selectedCats);
-            dispatch(updateProductCategories(selectedCats));
-            setValue("categoryId", categoryPath[categoryPath.length - 1].id.toString());
-          }
-        } catch (error) {
-          console.error('Error loading initial category:', error);
+        if (!response?.data) {
+          throw new Error("No categories data received");
         }
+
+        dispatch(setAvailableCategories(response.data));
+
+        // Initialize selector states
+        if (storeCategories.length > 0) {
+          const states = storeCategories
+            .map((category, index) => {
+              if (!category?.product_category_id) return null;
+
+              return {
+                level: index,
+                parentId:
+                  index === 0
+                    ? null
+                    : parseInt(
+                        storeCategories[
+                          index - 1
+                        ]?.product_category_id?.toString() || "0"
+                      ),
+                selectedCategories: [
+                  {
+                    value: category.product_category_id.toString(),
+                    label: category.product_category_name || "",
+                    data: {
+                      id: category.product_category_id,
+                      name: category.product_category_name,
+                      parent_id: category.product_category_parent,
+                      children: findChildren(
+                        response.data,
+                        category.product_category_id
+                      ),
+                    },
+                  },
+                ],
+              };
+            })
+            .filter(Boolean) as CategorySelectorState[];
+
+          setSelectorStates(
+            states.length > 0
+              ? states
+              : [
+                  {
+                    level: 0,
+                    parentId: null,
+                    selectedCategories: [],
+                  },
+                ]
+          );
+        } else {
+          setSelectorStates([
+            {
+              level: 0,
+              parentId: null,
+              selectedCategories: [],
+            },
+          ]);
+        }
+
+        setIsInitialLoading(false);
+        setIsInitialized(true);
+      } catch (error) {
+        console.error("Error loading categories:", error);
+        setSelectorStates([
+          { level: 0, parentId: null, selectedCategories: [] },
+        ]);
+        setIsInitialLoading(false);
+        setIsInitialized(true);
       }
     };
-    loadInitialCategory();
-  }, [initialCategoryId, dispatch, setValue]);
 
-  // Effect to handle state updates
-  useEffect(() => {
-    if (pendingSelection === null) return;
+    loadCategories();
+  }, [dispatch, storeCategories, isInitialized, findChildren]);
 
-    const { selected, level } = pendingSelection;
+  // Modified loadCategoryOptions function
+  const loadCategoryOptions = useCallback(
+    async (
+      search: string,
+      loadedOptions: SelectOption[],
+      { level, parentId }: { level: number; parentId: number | null }
+    ) => {
+      if (!availableCategories?.length) return { options: [], hasMore: false };
 
-    if (selected?.data) {
+      const findChildrenForParent = (
+        categories: any[],
+        targetParentId: number | null
+      ): any[] => {
+        if (targetParentId === null) {
+          return categories.filter((cat) => !cat.parent_id);
+        }
+
+        for (const cat of categories) {
+          if (cat.id === targetParentId) {
+            return cat.children || [];
+          }
+          if (cat.children?.length) {
+            const found = findChildrenForParent(cat.children, targetParentId);
+            if (found.length) return found;
+          }
+        }
+        return [];
+      };
+
+      const availableOptions = findChildrenForParent(
+        availableCategories,
+        parentId
+      )
+        .filter(
+          (cat) =>
+            !search || cat.name.toLowerCase().includes(search.toLowerCase())
+        )
+        .map((cat) => ({
+          value: cat.id.toString(),
+          label: cat.name,
+          subLabel: cat.code,
+          data: {
+            ...cat,
+            parent_id: parentId,
+            children: cat.children || [],
+          },
+        }));
+
+      return {
+        options: availableOptions,
+        hasMore: false,
+      };
+    },
+    [availableCategories]
+  );
+
+  const handleChange = useCallback(
+    (selected: SelectOption | null, level: number) => {
+      if (!selected) {
+        setSelectorStates((prev) => {
+          const newStates = prev.slice(0, level + 1);
+          newStates[level].selectedCategories = [];
+
+          const remainingCategories = newStates
+            .slice(0, level)
+            .filter((state) => state.selectedCategories.length > 0)
+            .map((state, idx) => ({
+              product_category_id: parseInt(state.selectedCategories[0].value),
+              product_category_name: state.selectedCategories[0].label,
+              product_category_parent: state.parentId,
+              category_hierarchy: idx + 1,
+            }));
+
+          setTimeout(() => {
+            dispatch(updateProductCategories(remainingCategories));
+            if (level === 0) {
+              setValue("categoryId", "");
+            }
+          }, 0);
+
+          return newStates;
+        });
+        return;
+      }
+
       setSelectorStates((prev) => {
         const newStates = prev.slice(0, level + 1);
         newStates[level] = {
@@ -429,90 +517,58 @@ export function CategorySelector() {
           selectedCategories: [selected],
         };
 
-        if (selected.data.children?.length > 0) {
+        // Add next level if there are children
+        const hasChildren =
+          selected.data.children && selected.data.children.length > 0;
+        if (hasChildren) {
           newStates.push({
             level: level + 1,
             parentId: parseInt(selected.value),
             selectedCategories: [],
-            availableOptions: selected.data.children.map((child) => ({
-              value: child.id.toString(),
-              label: child.name,
-              subLabel: child.code,
-              data: child,
-            })),
           });
         }
 
-        // Prepare new selected categories
-        const newSelectedCategories = newStates
+        // Update categories in Redux
+        const selectedCategories = newStates
           .filter((state) => state.selectedCategories.length > 0)
           .map((state, idx) => ({
             product_category_id: parseInt(state.selectedCategories[0].value),
-            product_category_parent: state.selectedCategories[0].data.parent_id,
-            product_category_name: state.selectedCategories[0].data.name,
+            product_category_name: state.selectedCategories[0].label,
+            product_category_parent: state.parentId,
             category_hierarchy: idx + 1,
           }));
 
-        setSelectedCategories(newSelectedCategories);
+        setTimeout(() => {
+          dispatch(updateProductCategories(selectedCategories));
+          setValue("categoryId", selected.value);
+        }, 0);
+
         return newStates;
       });
-
-      setValue("categoryId", selected.value);
-    } else {
-      setSelectorStates((prev) => {
-        const newStates = prev.slice(0, level + 1);
-
-        const newRemainingCategories = newStates
-          .slice(0, level)
-          .filter((state) => state.selectedCategories.length > 0)
-          .map((state, idx) => ({
-            product_category_id: parseInt(state.selectedCategories[0].value),
-            product_category_parent: state.selectedCategories[0].data.parent_id,
-            product_category_name: state.selectedCategories[0].data.name,
-            category_hierarchy: idx + 1,
-          }));
-
-        setSelectedCategories(newRemainingCategories);
-        return newStates;
-      });
-
-      setValue("categoryId", "");
-    }
-
-    setPendingSelection(null);
-  }, [pendingSelection, dispatch, setValue]);
-
-  // Effect to update Redux store when selectedCategories changes
-  useEffect(() => {
-    dispatch(updateProductCategories(selectedCategories));
-  }, [selectedCategories, dispatch]);
-
-  const handleChange = useCallback(
-    (selected: SelectOption | null, level: number) => {
-      setPendingSelection({ selected, level });
     },
-    []
+    [dispatch, setValue]
   );
+
+  if (isInitialLoading) {
+    return <div>Loading categories...</div>;
+  }
 
   return (
     <div className="space-y-4">
       {selectorStates.map((state, index) => (
         <ClientSelect
-          key={`category-${state.level}`}
+          key={`category-level-${state.level}`}
           name={`category-${state.level}`}
           control={control}
-          loadOptions={
-            index === 0
-              ? loadCategoryOptions
-              : async () => ({
-                  options: state.availableOptions || [],
-                  hasMore: false,
-                  additional: { page: 1, hasMore: false },
-                })
+          loadOptions={(search: string, loadedOptions: SelectOption[]) =>
+            loadCategoryOptions(search, loadedOptions, {
+              level: state.level,
+              parentId: state.parentId,
+            })
           }
           onChange={(selected) => handleChange(selected, state.level)}
           value={state.selectedCategories[0] || null}
-          defaultOptions={index === 0 ? true : state.availableOptions || []}
+          defaultOptions={true}
           placeholder={`Select ${index === 0 ? "category" : "subcategory"}...`}
           error={index === 0 ? errors.categoryId?.message : undefined}
           isClearable={false}
@@ -538,26 +594,6 @@ export function VariantTypeSelector({
   excludeIds?: number[];
 }) {
   const { variants, isLoading } = useVariants();
-  const [initialLoad, setInitialLoad] = useState(true);
-
-  // Add initial load effect
-  useEffect(() => {
-    if (initialLoad && variants.length > 0 && value?.value) {
-      const variant = variants.find(v => v.id.toString() === value.value);
-      if (variant) {
-        onChange({
-          value: variant.id.toString(),
-          label: variant.name,
-          data: {
-            id: variant.id,
-            name: variant.name,
-            values: variant.values,
-          },
-        });
-      }
-      setInitialLoad(false);
-    }
-  }, [variants, value, onChange, initialLoad]);
 
   const loadOptions = useCallback(
     async (search: string) => {
@@ -688,20 +724,20 @@ export function VariantValueSelector({
         container: () => "min-w-0",
       }}
       styles={{
-        menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-        multiValue: (base) => ({
+        menuPortal: (base: any) => ({ ...base, zIndex: 9999 }),
+        multiValue: (base: any) => ({
           ...base,
           backgroundColor: "hsl(var(--accent))",
           margin: "2px",
         }),
-        multiValueLabel: (base) => ({
+        multiValueLabel: (base: any) => ({
           ...base,
           color: "hsl(var(--accent-foreground))",
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
         }),
-        multiValueRemove: (base) => ({
+        multiValueRemove: (base: any) => ({
           ...base,
           color: "hsl(var(--accent-foreground))",
           padding: "0 4px",
@@ -710,7 +746,7 @@ export function VariantValueSelector({
             color: "hsl(var(--accent-foreground))",
           },
         }),
-        valueContainer: (base) => ({
+        valueContainer: (base: any) => ({
           ...base,
           padding: "2px 6px",
           gap: "2px",
@@ -718,14 +754,14 @@ export function VariantValueSelector({
           maxHeight: "120px",
           overflowY: "auto",
         }),
-        control: (base) => ({
+        control: (base: any) => ({
           ...base,
           minHeight: "40px",
           height: "auto",
           maxHeight: "120px",
           overflow: "hidden",
         }),
-        input: (base) => ({
+        input: (base: any) => ({
           ...base,
           margin: "2px",
         }),
