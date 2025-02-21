@@ -60,7 +60,7 @@ interface VariantTableData {
   skuKey: string;
   productName: string;
   uniqueCode: string;
-  combo: string[];
+  vendorSku?: string; // Add optional vendor SKU
 }
 
 interface CurrentSelector {
@@ -445,6 +445,7 @@ export function VariantCombinations() {
               ? paddedValue
               : variant.uniqueCode,
             full_product_name: variant.productName,
+            vendor_sku: localValues[`vendor-${variant.originalSkuKey}`] || '',
           })),
         })
       );
@@ -521,6 +522,23 @@ export function VariantCombinations() {
     );
   }, [dispatch, variantData, skuStatuses]);
 
+  const handleVendorSkuChange = useCallback((originalSkuKey: string, value: string) => {
+    updateLocalValue(`vendor-${originalSkuKey}`, value);
+  }, [updateLocalValue]);
+
+  const handleVendorSkuBlur = useCallback((originalSkuKey: string, value: string) => {
+    dispatch(
+      updateForm({
+        product_by_variant: variantData.map((variant) => ({
+          ...variant,
+          vendor_sku: variant.originalSkuKey === originalSkuKey 
+            ? value 
+            : localValues[`vendor-${variant.originalSkuKey}`] || undefined
+        }))
+      })
+    );
+  }, [dispatch, variantData, localValues]);
+
   const renderSkuFields = useCallback(
     (originalSkuKey: string, skuKey: string, uniqueCode: string) => {
       const defaultUniqueCode = String(
@@ -531,7 +549,7 @@ export function VariantCombinations() {
       const formGroupId = `variant-group-${originalSkuKey}`;
 
       return (
-        <div id={formGroupId} className="grid grid-cols-2 gap-4" role="group" aria-labelledby={`${formGroupId}-heading`}>
+        <div id={formGroupId} className="grid grid-cols-3 gap-4" role="group" aria-labelledby={`${formGroupId}-heading`}>
           <FormItem className="space-y-2">
             <FormControl>
               <div className="space-y-1">
@@ -582,13 +600,31 @@ export function VariantCombinations() {
               </div>
             </FormControl>
             <FormDescription>
-              <span className="block">Enter 1-10 numeric or use the default code</span>
+              Enter 1-10 numeric or use the default code
             </FormDescription>
+          </FormItem>
+
+          <FormItem className="space-y-2">
+            <FormControl>
+              <div className="space-y-1">
+                <FormLabel htmlFor={`vendor-sku-${originalSkuKey}`}>Vendor SKU</FormLabel>
+                <Input
+                  id={`vendor-sku-${originalSkuKey}`}
+                  name={`vendor-sku-${originalSkuKey}`}
+                  value={localValues[`vendor-${originalSkuKey}`] || ''}
+                  onChange={(e) => handleVendorSkuChange(originalSkuKey, e.target.value.slice(0, 50))}
+                  onBlur={(e) => handleVendorSkuBlur(originalSkuKey, e.target.value)}
+                  placeholder="(Optional)"
+                  maxLength={50}
+                />
+              </div>
+            </FormControl>
+            <FormDescription>Optional vendor reference number</FormDescription>
           </FormItem>
         </div>
       );
     },
-    [localValues, handleUniqueCodeChange, handleInputBlur, handleResetUniqueCode, variantData]
+    [localValues, handleUniqueCodeChange, handleInputBlur, handleVendorSkuChange, handleVendorSkuBlur]
   );
 
   const renderVariantValue = useCallback(
@@ -698,6 +734,7 @@ export function VariantCombinations() {
                       <TableHead>Full Product Name</TableHead>
                       <TableHead>SKU Variant</TableHead>
                       <TableHead className="w-[200px]">Unique Code</TableHead>
+                      <TableHead>Vendor SKU</TableHead>
                       <TableHead className="w-[100px] text-center">Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -706,7 +743,7 @@ export function VariantCombinations() {
                       ({ originalSkuKey, skuKey, productName, uniqueCode }: VariantTableData) => (
                         <TableRow key={skuKey}>
                           <TableCell>{productName}</TableCell>
-                          <TableCell colSpan={2}>
+                          <TableCell colSpan={3}>
                             {renderSkuFields(originalSkuKey, skuKey, uniqueCode)}
                           </TableCell>
                           <TableCell className="text-center">

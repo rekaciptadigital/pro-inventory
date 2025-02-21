@@ -5,14 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { SingleProductForm } from "@/components/inventory/product-form/single-product-form";
 import { useInventory } from "@/lib/hooks/inventory/use-inventory";
 import { useToast } from "@/components/ui/use-toast";
-import type { InventoryProduct } from "@/types/inventory";
 
 export function EditProductForm() {
   const { id } = useParams();
   const router = useRouter();
   const { toast } = useToast();
   const { getProduct } = useInventory();
-  const [product, setProduct] = useState<InventoryProduct | null>(null);
+  const [product, setProduct] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -20,18 +19,6 @@ export function EditProductForm() {
       try {
         setIsLoading(true);
         const data = await getProduct(id as string);
-
-        // Format categories to match expected structure
-        if (data.categories) {
-          data.categories = data.categories.map((cat) => ({
-            product_category_id: cat.product_category_id,
-            product_category_name: cat.product_category_name,
-            product_category_parent: cat.product_category_parent,
-            category_hierarchy: cat.category_hierarchy,
-          }));
-        }
-
-        console.log("Loaded product data:", data);
         setProduct(data);
       } catch (error) {
         console.error("Error loading product:", error);
@@ -61,14 +48,6 @@ export function EditProductForm() {
     );
   }
 
-  const handleSuccess = (updatedProduct: InventoryProduct) => {
-    toast({
-      title: "Success",
-      description: "Product has been updated successfully",
-    });
-    router.push("/dashboard/inventory");
-  };
-
   return (
     <div className="min-h-full flex flex-col">
       <div className="flex-none mb-6">
@@ -77,7 +56,16 @@ export function EditProductForm() {
       </div>
 
       <div className="flex-1 border rounded-lg">
-        <SingleProductForm initialData={product} onSuccess={handleSuccess} />
+        <SingleProductForm
+          initialData={product}
+          onSuccess={() => {
+            toast({
+              title: "Success",
+              description: "Product has been updated successfully",
+            });
+            router.push("/dashboard/inventory");
+          }}
+        />
       </div>
     </div>
   );

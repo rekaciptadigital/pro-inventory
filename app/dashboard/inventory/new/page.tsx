@@ -1,9 +1,9 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { SingleProductForm } from '@/components/inventory/product-form/single-product-form';
+import { useRouter } from 'next/navigation';
 
-export default function NewProductPage() {
+export default function CreateProductPage() {
   const router = useRouter();
 
   const handleSuccess = () => {
